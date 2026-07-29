@@ -1,2 +1,11 @@
 # modest-yoshiterica
-よしてるの知恵など。
+# 📜 Modest Yoshiterica
+
+> *"A modest digital codex of Yoshiteru, inspired by the Hermetica."*
+
+---
+
+## 🧭 概要 / Overview
+ようこそ、ささやかなるヨシテリカへ。
+このリポジトリは、ヘルメス文書などにインスパイアされた、よしてるの個人的な知識や思想を蓄積するデジタル古写本（Codex）です。
+
