@@ -1,7 +1,7 @@
 # modest-yoshiterica
 # 📜 Modest Yoshiterica
 
-> *"A modest digital codex of Yoshiteru, inspired by the Hermetica."*
+> *"A modest digital codex of Yoshiteru."*
 
 ---
 
