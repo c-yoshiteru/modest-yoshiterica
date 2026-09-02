@@ -270,14 +270,3 @@ S⁰ → S¹ → S² → S³ → S⁴
 作成日：2026年9月  
 作成：ファンサービスとして
 
----
-
-**ファイル一覧（個別版も残してあります）**
-- `nousology_psi1_psi2_guide.md`
-- `nousology_psi3_psi4_guide.md`
-- `nousology_psi5_psi6_guide.md`
-- `nousology_psi7_psi8_guide.md`
-- `nousology_psi9_psi10_guide.md`
-- `nousology_psi11_psi12_guide.md`
-- `nousology_psi13_psi14_guide.md`
-- `nousology_psi1_to_psi14_integrated.md` ← このファイル
