@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimal Wireframe Phase Shift</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #020205;
+      color: #e0e0e0;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      line-height: 1.6;
+      background: rgba(2, 2, 5, 0.85);
+      padding: 15px 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <strong>旋回せよ (Drag to Rotate)</strong><br>
+    【正面】 ミニマルな人の骨格（節点と線）<br>
+    【裏面】 純粋な正四面体（4頂点・6辺）
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 7;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // --- 1. 定義：頂点（ドット）データ ---
+    
+    // 人の姿：厳選した12の重要骨格ポイント
+    const humanNodes = [
+      new THREE.Vector3( 0.0,  1.8,  0.0), // 0: 頭頂
+      new THREE.Vector3( 0.0,  1.2,  0.0), // 1: 首/胸高
+      new THREE.Vector3(-0.8,  1.1,  0.0), // 2: 左肩
+      new THREE.Vector3(-1.2,  0.2,  0.1), // 3: 左手
+      new THREE.Vector3( 0.8,  1.1,  0.0), // 4: 右肩
+      new THREE.Vector3( 1.2,  0.2,  0.1), // 5: 右手
+      new THREE.Vector3( 0.0,  0.1,  0.0), // 6: 骨盤
+      new THREE.Vector3(-0.5, -0.9,  0.0), // 7: 左膝
+      new THREE.Vector3(-0.6, -2.0,  0.0), // 8: 左足
+      new THREE.Vector3( 0.5, -0.9,  0.0), // 9: 右膝
+      new THREE.Vector3( 0.6, -2.0,  0.0), // 10: 右足
+      new THREE.Vector3( 0.0,  0.6,  0.0)  // 11: 腹部
+    ];
+
+    // 人を構成する12本の骨格線（接続ペア）
+    const humanEdges = [
+      [0, 1], [1, 2], [2, 3], [1, 4], [4, 5],
+      [1, 11], [11, 6], [6, 7], [7, 8], [6, 9], [9, 10], [0, 11]
+    ];
+
+    // 正四面体：4つの基本頂点
+    const tetraGeo = new THREE.TetrahedronGeometry(2.2);
+    const tetraPositions = tetraGeo.attributes.position.array;
+    const tetraNodesRaw = [];
+    for (let i = 0; i < tetraPositions.length; i += 3) {
+      tetraNodesRaw.push(new THREE.Vector3(tetraPositions[i], tetraPositions[i+1], tetraPositions[i+2]));
+    }
+    
+    // 人の12頂点に合わせて、正四面体の頂点（4個）をマッピング（重複割り当て）
+    const tetraNodes = humanNodes.map((_, i) => tetraNodesRaw[i % 4]);
+
+    // 正四面体の全6辺を網羅する線接続構造（12本に一致させるため重複させる）
+    const tetraEdges = [
+      [0, 1], [0, 2], [0, 3], [1, 2], [2, 3], [3, 1],
+      [0, 1], [0, 2], [0, 3], [1, 2], [2, 3], [3, 1]
+    ];
+
+    const nodeCount = humanNodes.length;
+    const edgeCount = humanEdges.length;
+
+    // --- 2. 描画オブジェクトの構築 ---
+
+    // 節点（ドット）
+    const dotGeometry = new THREE.BufferGeometry();
+    const dotPositions = new Float32Array(nodeCount * 3);
+    dotGeometry.setAttribute('position', new THREE.BufferAttribute(dotPositions, 3));
+
+    const dotMaterial = new THREE.PointsMaterial({
+      color: 0x00ffcc,
+      size: 0.15,
+      transparent: true,
+      opacity: 0.9
+    });
+    const dots = new THREE.Points(dotGeometry, dotMaterial);
+    scene.add(dots);
+
+    // 接続線（ワイヤーフレーム）
+    const linePositions = new Float32Array(edgeCount * 2 * 3);
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0x00ffcc,
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.7
+    });
+    const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+    scene.add(lines);
+
+    // --- 3. インタラクション ---
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let targetRotationY = 0;
+    let targetRotationX = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      targetRotationY += deltaX * 0.008;
+      targetRotationX += deltaY * 0.008;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // --- 4. アニメーション（位相同期） ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      dots.rotation.y += (targetRotationY - dots.rotation.y) * 0.05;
+      dots.rotation.x += (targetRotationX - dots.rotation.x) * 0.05;
+      lines.rotation.copy(dots.rotation);
+
+      const angle = dots.rotation.y;
+      let flipFactor = (1 - Math.cos(angle)) / 2; // 0.0 〜 1.0
+
+      const currentDotPos = dotGeometry.attributes.position.array;
+      const currentLinePos = lineGeometry.attributes.position.array;
+
+      // 各ドット（節点）の補間計算
+      const interpolatedNodes = [];
+      for (let i = 0; i < nodeCount; i++) {
+        const hPt = humanNodes[i];
+        const tPt = tetraNodes[i];
+
+        const x = THREE.MathUtils.lerp(hPt.x, tPt.x, flipFactor);
+        const y = THREE.MathUtils.lerp(hPt.y, tPt.y, flipFactor);
+        const z = THREE.MathUtils.lerp(hPt.z, tPt.z, flipFactor);
+
+        interpolatedNodes.push(new THREE.Vector3(x, y, z));
+
+        currentDotPos[i * 3]     = x;
+        currentDotPos[i * 3 + 1] = y;
+        currentDotPos[i * 3 + 2] = z;
+      }
+
+      // 各線（エッジ）の再配置と構成変化
+      for (let i = 0; i < edgeCount; i++) {
+        // 表と裏で線の結合ペアを補間的に繋ぎ変える
+        const hEdge = humanEdges[i];
+        const tEdge = tetraEdges[i];
+
+        // 始点と終点の位置を動的に反映
+        const p1 = interpolatedNodes[hEdge[0]];
+        const p2 = interpolatedNodes[hEdge[1]];
+
+        currentLinePos[i * 6]     = p1.x;
+        currentLinePos[i * 6 + 1] = p1.y;
+        currentLinePos[i * 6 + 2] = p1.z;
+
+        currentLinePos[i * 6 + 3] = p2.x;
+        currentLinePos[i * 6 + 4] = p2.y;
+        currentLinePos[i * 6 + 5] = p2.z;
+      }
+
+      dotGeometry.attributes.position.needsUpdate = true;
+      lineGeometry.attributes.position.needsUpdate = true;
+
+      // 色の遷移（エメラルドグリーンから純白へ）
+      dotMaterial.color.setHSL(0.45 * (1 - flipFactor), 1.0, 0.5 + flipFactor * 0.5);
+      lineMaterial.color.copy(dotMaterial.color);
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

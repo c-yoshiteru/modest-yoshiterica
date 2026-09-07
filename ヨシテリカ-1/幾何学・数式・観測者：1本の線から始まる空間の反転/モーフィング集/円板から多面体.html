@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horoscope to Dodecahedron - Phase Shift</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #020206;
+      color: #e0e0e0;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      line-height: 1.6;
+      background: rgba(2, 2, 6, 0.85);
+      padding: 15px 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(180, 150, 255, 0.3);
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <strong>旋回せよ (Drag to Rotate)</strong><br>
+    【正面】 2Dの運命解読図：ホロスコープ (Horoscope Chart)<br>
+    【裏面】 3Dの宇宙原形：正十二面体 (Dodecahedron)
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 6.5;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // --- 1. 裏相：正十二面体の頂点・エッジデータ生成 ---
+    const dodecaGeo = new THREE.DodecahedronGeometry(2.0);
+    const dodecaPos = dodecaGeo.attributes.position.array;
+    
+    // 重複頂点の除去（ユニークな20頂点を抽出）
+    const dodecaNodes = [];
+    for (let i = 0; i < dodecaPos.length; i += 3) {
+      const v = new THREE.Vector3(dodecaPos[i], dodecaPos[i+1], dodecaPos[i+2]);
+      if (!dodecaNodes.some(existing => existing.distanceTo(v) < 0.01)) {
+        dodecaNodes.push(v);
+      }
+    }
+
+    // 接続線のペア（30本のエッジ）を生成
+    const dodecaEdges = [];
+    for (let i = 0; i < dodecaNodes.length; i++) {
+      for (let j = i + 1; j < dodecaNodes.length; j++) {
+        // 正十二面体の特定の辺の長さに近いものだけを接続
+        const dist = dodecaNodes[i].distanceTo(dodecaNodes[j]);
+        if (dist > 1.4 && dist < 1.7) {
+          dodecaEdges.push([i, j]);
+        }
+      }
+    }
+
+    const nodeCount = dodecaNodes.length; // 20頂点
+    const edgeCount = dodecaEdges.length; // 30エッジ
+
+    // --- 2. 表相：ホロスコープ（円環・軸・アスペクト）の頂点生成 ---
+    const horoscopeNodes = [];
+
+    for (let i = 0; i < nodeCount; i++) {
+      if (i < 12) {
+        // 12の黄道サイン（外円上の12等分点）
+        const angle = (i / 12) * Math.PI * 2;
+        horoscopeNodes.push(new THREE.Vector3(2.4 * Math.cos(angle), 2.4 * Math.sin(angle), 0));
+      } else if (i < 16) {
+        // 内円（ハウス区分線）
+        const angle = ((i - 12) / 4) * Math.PI * 2 + Math.PI / 12;
+        horoscopeNodes.push(new THREE.Vector3(1.2 * Math.cos(angle), 1.2 * Math.sin(angle), 0));
+      } else {
+        // 中心点付近のアスペクト交叉点
+        const angle = ((i - 16) / 4) * Math.PI * 2;
+        horoscopeNodes.push(new THREE.Vector3(0.4 * Math.cos(angle), 0.4 * Math.sin(angle), 0));
+      }
+    }
+
+    // --- 3. 描画オブジェクト（ドット＆ライン）の構築 ---
+    const dotGeometry = new THREE.BufferGeometry();
+    const dotPositions = new Float32Array(nodeCount * 3);
+    dotGeometry.setAttribute('position', new THREE.BufferAttribute(dotPositions, 3));
+
+    const dotMaterial = new THREE.PointsMaterial({
+      color: 0xc8a2ff,
+      size: 0.1,
+      transparent: true,
+      opacity: 0.9
+    });
+    const dots = new THREE.Points(dotGeometry, dotMaterial);
+    scene.add(dots);
+
+    const linePositions = new Float32Array(edgeCount * 2 * 3);
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0xc8a2ff,
+      transparent: true,
+      opacity: 0.6,
+      linewidth: 1.5
+    });
+    const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+    scene.add(lines);
+
+    // --- 4. ドラッグ＆自転のインタラクション ---
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let targetRotationY = 0;
+    let targetRotationX = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      targetRotationY += deltaX * 0.008;
+      targetRotationX += deltaY * 0.008;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // --- 5. アニメーション（連続位相補間） ---
+    let autoRotateAngle = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 静寂な自動自転
+      autoRotateAngle += 0.0025;
+
+      dots.rotation.y += (targetRotationY + autoRotateAngle - dots.rotation.y) * 0.05;
+      dots.rotation.x += (targetRotationX - dots.rotation.x) * 0.05;
+      lines.rotation.copy(dots.rotation);
+
+      // 回転角度から「裏返し度（0.0 〜 1.0）」を導出
+      const angle = dots.rotation.y;
+      let flipFactor = (1 - Math.cos(angle)) / 2;
+
+      const currentDotPos = dotGeometry.attributes.position.array;
+      const currentLinePos = lineGeometry.attributes.position.array;
+
+      // 頂点座標の補間計算
+      const interpolatedNodes = [];
+      for (let i = 0; i < nodeCount; i++) {
+        const hPt = horoscopeNodes[i];
+        const dPt = dodecaNodes[i];
+
+        const x = THREE.MathUtils.lerp(hPt.x, dPt.x, flipFactor);
+        const y = THREE.MathUtils.lerp(hPt.y, dPt.y, flipFactor);
+        const z = THREE.MathUtils.lerp(hPt.z, dPt.z, flipFactor);
+
+        interpolatedNodes.push(new THREE.Vector3(x, y, z));
+
+        currentDotPos[i * 3]     = x;
+        currentDotPos[i * 3 + 1] = y;
+        currentDotPos[i * 3 + 2] = z;
+      }
+
+      // エッジ座標の補間計算
+      for (let i = 0; i < edgeCount; i++) {
+        const edge = dodecaEdges[i];
+        const p1 = interpolatedNodes[edge[0]];
+        const p2 = interpolatedNodes[edge[1]];
+
+        currentLinePos[i * 6]     = p1.x;
+        currentLinePos[i * 6 + 1] = p1.y;
+        currentLinePos[i * 6 + 2] = p1.z;
+
+        currentLinePos[i * 6 + 3] = p2.x;
+        currentLinePos[i * 6 + 4] = p2.y;
+        currentLinePos[i * 6 + 5] = p2.z;
+      }
+
+      dotGeometry.attributes.position.needsUpdate = true;
+      lineGeometry.attributes.position.needsUpdate = true;
+
+      // 色彩の移り変わり（神秘的なラベンダーパープル ⇔ 宇宙の静寂シアンホワイト）
+      dotMaterial.color.setHSL(0.7 - flipFactor * 0.2, 0.8, 0.6 + flipFactor * 0.2);
+      lineMaterial.color.copy(dotMaterial.color);
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

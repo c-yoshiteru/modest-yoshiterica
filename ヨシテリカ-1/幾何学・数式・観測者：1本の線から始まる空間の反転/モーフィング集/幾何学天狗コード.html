@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tengu to Tetrahedron - Phase Shift</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #050508;
+      color: #e0e0e0;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      line-height: 1.6;
+      background: rgba(5, 5, 8, 0.7);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <strong>ドラッグで回転 / 旋回</strong><br>
+    【正面】 2Dの点と線で編まれた「天狗の顔（意味）」<br>
+    【裏面】 3D空間に立ち現れる「正四面体（幾何学）」
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    // 1. シーン・カメラ・レンダラーの設定
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 5;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // 2. 正四面体の頂点データを取得（高次元/裏の構造）
+    const tetraGeo = new THREE.TetrahedronGeometry(1.8);
+    const posAttribute = tetraGeo.attributes.position;
+    const tetraVertices = [];
+    for (let i = 0; i < posAttribute.count; i++) {
+      tetraVertices.push(new THREE.Vector3().fromBufferAttribute(posAttribute, i));
+    }
+
+    // 3. 天狗の顔をかたどる2D座標（表の意味/平面データ）
+    // (鼻、目、輪郭を模した相対的な2D点群)
+    const tenguPoints2D = [
+      // 鼻（長いくちばし/団十郎鼻）
+      new THREE.Vector3(0, 0.8, 0),
+      new THREE.Vector3(0, -0.2, 0),
+      new THREE.Vector3(1.2, 0.1, 0),
+      // 右目・眉
+      new THREE.Vector3(-0.4, 0.6, 0),
+      new THREE.Vector3(-0.7, 0.4, 0),
+      // 左目・眉
+      new THREE.Vector3(0.4, 0.6, 0),
+      new THREE.Vector3(0.7, 0.4, 0),
+      // 口・髭
+      new THREE.Vector3(-0.5, -0.6, 0),
+      new THREE.Vector3(0, -0.8, 0),
+      new THREE.Vector3(0.5, -0.6, 0),
+      // 輪郭
+      new THREE.Vector3(-1.0, 1.0, 0),
+      new THREE.Vector3(1.0, 1.0, 0)
+    ];
+
+    // 4. パーティクル（点群）の作成：表と裏の座標を紐付ける
+    const particleCount = tenguPoints2D.length;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+
+    // 初期位置（正面＝天狗）
+    tenguPoints2D.forEach((pt, i) => {
+      positions[i * 3] = pt.x;
+      positions[i * 3 + 1] = pt.y;
+      positions[i * 3 + 2] = pt.z;
+    });
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    // マテリアル（発光感のある点）
+    const material = new THREE.PointsMaterial({
+      color: 0x00ffcc,
+      size: 0.08,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    const particleSystem = new THREE.Points(geometry, material);
+    scene.add(particleSystem);
+
+    // ワイヤーフレーム用の線描画
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.4 });
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', geometry.attributes.position);
+    const lineSystem = new THREE.LineLoop(lineGeometry, lineMaterial);
+    scene.add(lineSystem);
+
+    // 5. 回転（ドラッグ）のインタラクション実装
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let targetRotationY = 0;
+    let targetRotationX = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      targetRotationY += deltaX * 0.008;
+      targetRotationX += deltaY * 0.008;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // 6. メインフレームアニメーション（位相の補間・モーフィング）
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 視点のなめらかな追従
+      particleSystem.rotation.y += (targetRotationY - particleSystem.rotation.y) * 0.1;
+      particleSystem.rotation.x += (targetRotationX - particleSystem.rotation.x) * 0.1;
+      lineSystem.rotation.copy(particleSystem.rotation);
+
+      // Y軸の回転角から「裏返り度（0.0：正面 〜 1.0：真裏）」を計算
+      const normalizedAngle = Math.abs((particleSystem.rotation.y % (Math.PI * 2)));
+      let flipFactor = Math.abs(Math.sin(normalizedAngle / 2)); // 0 〜 1 で変化
+
+      // 各頂点の位置を「天狗（表）」と「正四面体（裏）」の間で動的に補間
+      const currentPos = geometry.attributes.position.array;
+
+      for (let i = 0; i < particleCount; i++) {
+        const originPt = tenguPoints2D[i];
+        const targetPt = tetraVertices[i % tetraVertices.length]; // 正四面体の頂点にマッピング
+
+        // 線形補間 (Lerp)
+        currentPos[i * 3]     = THREE.MathUtils.lerp(originPt.x, targetPt.x, flipFactor);
+        currentPos[i * 3 + 1] = THREE.MathUtils.lerp(originPt.y, targetPt.y, flipFactor);
+        currentPos[i * 3 + 2] = THREE.MathUtils.lerp(originPt.z, targetPt.z, flipFactor);
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      lineGeometry.attributes.position.needsUpdate = true;
+
+      // 色の移り変わり（表：鮮やかなエメラルドグリーン / 裏：幾何学の純白）
+      material.color.setHSL(0.45 * (1 - flipFactor), 1.0, 0.5 + flipFactor * 0.5);
+      lineMaterial.color.copy(material.color);
+
+      renderer.render(scene, camera);
+    }
+
+    // ウィンドウサイズ変更対応
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

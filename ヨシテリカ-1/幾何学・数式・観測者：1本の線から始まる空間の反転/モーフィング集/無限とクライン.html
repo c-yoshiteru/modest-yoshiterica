@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobius to Klein - Phase Shift</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #010103;
+      color: #e0e0e0;
+      font-family: 'Courier New', Courier, monospace; /* 少しコードっぽいフォントに */
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      line-height: 1.6;
+      background: rgba(1, 1, 3, 0.8);
+      padding: 15px 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(0, 255, 255, 0.2);
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <strong>旋回せよ (Drag to Rotate)</strong><br>
+    【正面（3D投影）】 無限の記号：∞ (二元性のループ)<br>
+    【裏面（4D位相）】 クラインの壺 (内と外の消失)
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 10; // 少し遠くから俯瞰
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // --- 幾何学の定義 ---
+
+    // 1. クラインの壺（裏：高次元構造）
+    // Three.jsのParametricGeometryを使用してクラインの壺（の8字形投影）を生成
+    const kleinFunction = function (u, v, target) {
+      u *= Math.PI * 2;
+      v *= Math.PI * 2;
+      const r = 2; // 全体の半径
+
+      // 8字形クラインの壺の数式
+      let x = (r + Math.cos(u / 2) * Math.sin(v) - Math.sin(u / 2) * Math.sin(2 * v)) * Math.cos(u);
+      let y = (r + Math.cos(u / 2) * Math.sin(v) - Math.sin(u / 2) * Math.sin(2 * v)) * Math.sin(u);
+      let z = Math.sin(u / 2) * Math.sin(v) + Math.cos(u / 2) * Math.sin(2 * v);
+
+      target.set(x, y, z);
+    };
+
+    // 分解能（点の数）を高める
+    const slices = 60; 
+    const stacks = 60;
+    const kleinGeo = new THREE.ParametricGeometry(kleinFunction, slices, stacks);
+    const particleCount = kleinGeo.attributes.position.count;
+
+    // 2. 無限記号：∞（表：3D投影）
+    // クラインの壺と同じ数の点を、平面上の「∞」の形に配置する
+    const infinityPoints = [];
+    for (let i = 0; i < particleCount; i++) {
+      // 媒介変数t (0〜2π)
+      const t = (i / particleCount) * Math.PI * 2;
+      
+      // レムニスケート（∞記号）の数式
+      const scale = 5;
+      const x = (scale * Math.cos(t)) / (1 + Math.sin(t) * Math.sin(t));
+      const y = (scale * Math.sin(t) * Math.cos(t)) / (1 + Math.sin(t) * Math.sin(t));
+      const z = 0; // 平面
+
+      infinityPoints.push(new THREE.Vector3(x, y, z));
+    }
+
+    // --- パーティクルシステムの構築 ---
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+
+    // 初期位置はクラインの壺（裏）にして、アニメーションで∞にモーフィングさせる
+    const kleinVertices = kleinGeo.attributes.position.array;
+    for (let i = 0; i < particleCount * 3; i++) {
+      positions[i] = kleinVertices[i];
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    // マテリアル：量子的な光の点
+    const material = new THREE.PointsMaterial({
+      color: 0x00ffff, // サイアン（高次元の光）
+      size: 0.05,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending // 光を重ねて発光感を出す
+    });
+
+    const particleSystem = new THREE.Points(geometry, material);
+    scene.add(particleSystem);
+
+    // ワイヤーフレーム（位相構造の可視化）
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.15 });
+    const lineSystem = new THREE.LineSegments(new THREE.WireframeGeometry(kleinGeo), lineMaterial);
+    scene.add(lineSystem);
+
+    // --- インタラクション ---
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let targetRotationY = 0;
+    let targetRotationX = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      targetRotationY += deltaX * 0.005;
+      targetRotationX += deltaY * 0.005;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // --- アニメーションループ（位相遷移） ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // なめらかな回転
+      particleSystem.rotation.y += (targetRotationY - particleSystem.rotation.y) * 0.05;
+      particleSystem.rotation.x += (targetRotationX - particleSystem.rotation.x) * 0.05;
+      lineSystem.rotation.copy(particleSystem.rotation);
+
+      // Y軸の回転角から「裏返り度」を計算 (0.0=正面=∞, 1.0=真裏=クライン)
+      const angle = particleSystem.rotation.y;
+      
+      // cosを使って、正面(0, 2π, 4π...)で0、真裏(π, 3π...)で1になるファクターを作る
+      let flipFactor = (1 - Math.cos(angle)) / 2;
+
+      // 頂点位置のモーフィング
+      const currentPos = geometry.attributes.position.array;
+      const kleinPos = kleinGeo.attributes.position.array;
+
+      for (let i = 0; i < particleCount; i++) {
+        const infinityPt = infinityPoints[i];
+
+        // ∞（表）とクライン（裏）の座標を補間
+        // i*3, i*3+1, i*3+2 がx, y, z
+        currentPos[i * 3]     = THREE.MathUtils.lerp(infinityPt.x, kleinPos[i * 3], flipFactor);
+        currentPos[i * 3 + 1] = THREE.MathUtils.lerp(infinityPt.y, kleinPos[i * 3 + 1], flipFactor);
+        currentPos[i * 3 + 2] = THREE.MathUtils.lerp(infinityPt.z, kleinPos[i * 3 + 2], flipFactor);
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+
+      // ワイヤーフレームの不透明度を裏側（クライン）の時だけ上げる
+      lineMaterial.opacity = 0.1 + flipFactor * 0.3;
+
+      renderer.render(scene, camera);
+    }
+
+    // リサイズ対応
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

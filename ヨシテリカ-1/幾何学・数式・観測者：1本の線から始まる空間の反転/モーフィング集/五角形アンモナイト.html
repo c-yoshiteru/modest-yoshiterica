@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pentagram to Ammonite - Infinite Gyre</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #020306;
+      color: #e0e0e0;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      line-height: 1.6;
+      background: rgba(2, 3, 6, 0.85);
+      padding: 15px 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <strong>旋回せよ (Drag to Rotate)</strong><br>
+    【正面】 黄金比の静的構造：五角形と星形 (Pentagram)<br>
+    【裏面】 黄金比の動的生成：アンモナイト螺旋 (Ammonite Spiral)
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 7;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // 黄金比 Φ (Phi)
+    const PHI = (1 + Math.sqrt(5)) / 2;
+
+    // 点と線の総数定義
+    const particleCount = 1800;
+
+    // --- 1. 正五角形＋星形（表）の点群データ生成 ---
+    const pentaPoints = [];
+    
+    // 基本となる5つの頂点
+    const basePenta = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
+      basePenta.push(new THREE.Vector3(2.5 * Math.cos(angle), 2.5 * Math.sin(angle), 0));
+    }
+
+    // 五角形の外枠＋星形の対角線に点群を配置
+    // 星形を描く頂点の順序：0 -> 2 -> 4 -> 1 -> 3 -> 0
+    const starOrder = [0, 2, 4, 1, 3, 0];
+
+    for (let i = 0; i < particleCount; i++) {
+      const seg = i % 10;
+      let pA, pB;
+
+      if (seg < 5) {
+        // 外枠の五角形
+        pA = basePenta[seg];
+        pB = basePenta[(seg + 1) % 5];
+      } else {
+        // 内部の星形
+        const idx = seg - 5;
+        pA = basePenta[starOrder[idx]];
+        pB = basePenta[starOrder[idx + 1]];
+      }
+
+      const t = Math.random();
+      const pt = new THREE.Vector3().lerpVectors(pA, pB, t);
+      // 少し厚み（Z軸方向のブレ）を持たせて立体感を出す
+      pt.z = (Math.random() - 0.5) * 0.1;
+      pentaPoints.push(pt);
+    }
+
+    // --- 2. アンモナイト（裏：対数螺旋・3D殻）のデータ生成 ---
+    const ammonitePoints = [];
+    
+    for (let i = 0; i < particleCount; i++) {
+      // 螺旋の回転角 theta
+      const theta = (i / particleCount) * Math.PI * 8; // 4周巻く
+      
+      // 対数螺旋の半径 r = a * e^(b * theta)
+      const a = 0.15;
+      const b = 0.15;
+      const r = a * Math.exp(b * theta);
+
+      // アンモナイトの殻の管（断面の厚み）
+      const tubeRadius = r * 0.3;
+      const phiAngle = (i % 30) / 30 * Math.PI * 2; // 管を一周する角
+
+      const x = (r + tubeRadius * Math.cos(phiAngle)) * Math.cos(theta) - 1.5;
+      const y = (r + tubeRadius * Math.cos(phiAngle)) * Math.sin(theta);
+      const z = tubeRadius * Math.sin(phiAngle) + (theta * 0.05); // 3D的なひだの奥行き
+
+      ammonitePoints.push(new THREE.Vector3(x, y, z));
+    }
+
+    // --- 3. パーティクル構造構築 ---
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size: 0.05,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending
+    });
+
+    const particleSystem = new THREE.Points(geometry, material);
+    scene.add(particleSystem);
+
+    // インタラクション
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let targetRotationY = 0;
+    let targetRotationX = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      targetRotationY += deltaX * 0.008;
+      targetRotationX += deltaY * 0.008;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // アニメーション（無限旋回・モーフィング）
+    let autoRotateAngle = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 自転の常時回転（無限旋回）
+      autoRotateAngle += 0.003;
+
+      particleSystem.rotation.y += (targetRotationY + autoRotateAngle - particleSystem.rotation.y) * 0.05;
+      particleSystem.rotation.x += (targetRotationX - particleSystem.rotation.x) * 0.05;
+
+      const angle = particleSystem.rotation.y;
+      let flipFactor = (1 - Math.cos(angle)) / 2; // 0.0 〜 1.0
+
+      const currentPos = geometry.attributes.position.array;
+      const currentCol = geometry.attributes.color.array;
+
+      for (let i = 0; i < particleCount; i++) {
+        const pPt = pentaPoints[i];
+        const aPt = ammonitePoints[i];
+
+        // 座標補間
+        currentPos[i * 3]     = THREE.MathUtils.lerp(pPt.x, aPt.x, flipFactor);
+        currentPos[i * 3 + 1] = THREE.MathUtils.lerp(pPt.y, aPt.y, flipFactor);
+        currentPos[i * 3 + 2] = THREE.MathUtils.lerp(pPt.z, aPt.z, flipFactor);
+
+        // 色彩の補間（正面：黄金に輝く星ゴールド ⇔ 裏面：太古の神秘アンバー＆アンモナイトブルー）
+        const rVal = THREE.MathUtils.lerp(1.0, 0.2 + (i / particleCount) * 0.8, flipFactor);
+        const gVal = THREE.MathUtils.lerp(0.85, 0.7, flipFactor);
+        const bVal = THREE.MathUtils.lerp(0.2, 1.0 - (i / particleCount) * 0.6, flipFactor);
+
+        currentCol[i * 3]     = rVal;
+        currentCol[i * 3 + 1] = gVal;
+        currentCol[i * 3 + 2] = bVal;
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

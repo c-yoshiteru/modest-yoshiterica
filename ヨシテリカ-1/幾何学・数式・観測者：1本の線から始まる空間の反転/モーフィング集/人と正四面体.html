@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Human to Tetrahedron - Phase Shift</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #020205;
+      color: #e0e0e0;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      line-height: 1.6;
+      background: rgba(2, 2, 5, 0.85);
+      padding: 15px 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 200, 150, 0.2);
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <strong>旋回せよ (Drag to Rotate)</strong><br>
+    【正面】 人の姿：意識・自己の具象 (Human Figure)<br>
+    【裏面】 正四面体：宇宙の絶対構造 (Tetrahedron)
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 7;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const particleCount = 3000; // 点の密度をアップ
+
+    // --- 1. 人の姿（表：具象）の3Dデータ計算 ---
+    const humanPoints = [];
+    const humanColors = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      let x, y, z;
+      const part = Math.random();
+
+      if (part < 0.15) { // 頭部 (球体)
+        const u = Math.random() * Math.PI * 2;
+        const v = Math.random() * Math.PI;
+        const r = 0.45;
+        x = r * Math.sin(v) * Math.cos(u);
+        y = r * Math.cos(v) + 1.8;
+        z = r * Math.sin(v) * Math.sin(u);
+      } else if (part < 0.55) { // 胴体 (楕円体)
+        const u = Math.random() * Math.PI * 2;
+        const v = Math.random() * Math.PI;
+        x = 0.65 * Math.sin(v) * Math.cos(u);
+        y = 1.1 * Math.cos(v) * 0.9 + 0.5;
+        z = 0.35 * Math.sin(v) * Math.sin(u);
+      } else if (part < 0.75) { // 腕 (左右)
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const t = Math.random();
+        x = side * (0.7 + t * 0.4);
+        y = 1.2 - t * 1.1;
+        z = (Math.random() - 0.5) * 0.2;
+      } else { // 脚 (左右)
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const t = Math.random();
+        x = side * (0.25 + t * 0.15);
+        y = -0.3 - t * 1.5;
+        z = (Math.random() - 0.5) * 0.25;
+      }
+
+      humanPoints.push(new THREE.Vector3(x, y, z));
+
+      // 人の色彩：温かみのあるアンバー・ピンク・ゴールド
+      humanColors.push(1.0, 0.6 + Math.random() * 0.3, 0.3 + Math.random() * 0.2);
+    }
+
+    // --- 2. 正四面体（裏：絶対構造）の3Dデータ計算 ---
+    const tetraGeo = new THREE.TetrahedronGeometry(2.5);
+    const tetraPositions = tetraGeo.attributes.position.array;
+    const tetraVertices = [];
+    for (let i = 0; i < tetraPositions.length; i += 3) {
+      tetraVertices.push(new THREE.Vector3(tetraPositions[i], tetraPositions[i+1], tetraPositions[i+2]));
+    }
+
+    const tetraPoints = [];
+    for (let i = 0; i < particleCount; i++) {
+      const faceIndex = i % 4;
+      let vA, vB, vC;
+
+      if (faceIndex === 0) { vA = tetraVertices[0]; vB = tetraVertices[1]; vC = tetraVertices[2]; }
+      else if (faceIndex === 1) { vA = tetraVertices[0]; vB = tetraVertices[1]; vC = tetraVertices[3]; }
+      else if (faceIndex === 2) { vA = tetraVertices[0]; vB = tetraVertices[2]; vC = tetraVertices[3]; }
+      else { vA = tetraVertices[1]; vB = tetraVertices[2]; vC = tetraVertices[3]; }
+
+      let r1 = Math.random();
+      let r2 = Math.random();
+      if (r1 + r2 > 1) { r1 = 1 - r1; r2 = 1 - r2; }
+
+      const pt = new THREE.Vector3()
+        .addScaledVector(vA, 1 - r1 - r2)
+        .addScaledVector(vB, r1)
+        .addScaledVector(vC, r2);
+
+      tetraPoints.push(pt);
+    }
+
+    // --- パーティクルシステムの構築 ---
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+      positions[i * 3]     = humanPoints[i].x;
+      positions[i * 3 + 1] = humanPoints[i].y;
+      positions[i * 3 + 2] = humanPoints[i].z;
+
+      colors[i * 3]     = humanColors[i * 3];
+      colors[i * 3 + 1] = humanColors[i * 3 + 1];
+      colors[i * 3 + 2] = humanColors[i * 3 + 2];
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size: 0.035,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending
+    });
+
+    const particleSystem = new THREE.Points(geometry, material);
+    scene.add(particleSystem);
+
+    // --- ドラッグ操作 ---
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let targetRotationY = 0;
+    let targetRotationX = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      targetRotationY += deltaX * 0.006;
+      targetRotationX += deltaY * 0.006;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // --- アニメーション ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      particleSystem.rotation.y += (targetRotationY - particleSystem.rotation.y) * 0.05;
+      particleSystem.rotation.x += (targetRotationX - particleSystem.rotation.x) * 0.05;
+
+      const angle = particleSystem.rotation.y;
+      let flipFactor = (1 - Math.cos(angle)) / 2;
+
+      const currentPos = geometry.attributes.position.array;
+      const currentCol = geometry.attributes.color.array;
+
+      for (let i = 0; i < particleCount; i++) {
+        const humPt = humanPoints[i];
+        const tetPt = tetraPoints[i];
+
+        currentPos[i * 3]     = THREE.MathUtils.lerp(humPt.x, tetPt.x, flipFactor);
+        currentPos[i * 3 + 1] = THREE.MathUtils.lerp(humPt.y, tetPt.y, flipFactor);
+        currentPos[i * 3 + 2] = THREE.MathUtils.lerp(humPt.z, tetPt.z, flipFactor);
+
+        // 色の補間（温かい人肌・情熱のゴールドから、静寂なシアン・ホワイトへ）
+        currentCol[i * 3]     = THREE.MathUtils.lerp(humanColors[i * 3], 0.2, flipFactor);
+        currentCol[i * 3 + 1] = THREE.MathUtils.lerp(humanColors[i * 3 + 1], 0.9, flipFactor);
+        currentCol[i * 3 + 2] = THREE.MathUtils.lerp(humanColors[i * 3 + 2], 1.0, flipFactor);
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
