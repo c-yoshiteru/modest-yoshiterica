@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slow Collision Noos Construction - modest-yoshiterica</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      background-color: #040507;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: sans-serif;
+      cursor: pointer;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .status-overlay {
+      position: absolute;
+      bottom: 40px;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 0.85rem;
+      letter-spacing: 0.25em;
+      text-align: center;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 0 10px rgba(0, 255, 200, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="canvas"></canvas>
+  <div class="status-overlay" id="statusText">画面クリック：ゆったりとした自他の接近と衝突のシーケンス開始</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('statusText');
+
+    let width, height, centerX, centerY;
+    let time = 0;
+    
+    // アニメーション状態: IDLE -> APPROACH -> CONTACT -> BIRTH -> EXPAND
+    let phaseState = 'IDLE'; 
+    let animProgress = 0;
+
+    const particleCount = 200;
+    const particles = [];
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      centerX = width / 2;
+      centerY = height / 2;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 宇宙球の3D粒子群を初期化
+    for (let i = 0; i < particleCount; i++) {
+      const theta = Math.acos(2 * Math.random() - 1);
+      const phi = 2 * Math.PI * Math.random();
+      particles.push({
+        baseX: Math.sin(theta) * Math.cos(phi),
+        baseY: Math.sin(theta) * Math.sin(phi),
+        baseZ: Math.cos(theta),
+        size: Math.random() * 2.2 + 1,
+        noiseOffset: Math.random() * Math.PI * 2
+      });
+    }
+
+    // ゆっくりとした衝突ムービーのシーケンス発動
+    function triggerSequence() {
+      if (phaseState === 'APPROACH' || phaseState === 'CONTACT') return;
+
+      phaseState = 'APPROACH';
+      animProgress = 0;
+      statusText.textContent = '【接近】他者（赤）と自己（青）の視線がゆったりと重なりに向かう';
+
+      // 4秒かけてじっくり接近し、接触点へ
+      setTimeout(() => {
+        phaseState = 'CONTACT';
+        statusText.textContent = '【接触】自他の奥行きがピッと触れ合い、位相が凝縮';
+      }, 4000);
+
+      // 接触からプルプル反転（生成）
+      setTimeout(() => {
+        phaseState = 'BIRTH';
+        statusText.textContent = '【生成】双対複素ヒルベルト空間が手前へプルプルと反転膨張！';
+      }, 5200);
+
+      // 宇宙球の定着
+      setTimeout(() => {
+        phaseState = 'EXPAND';
+        statusText.textContent = '【定着】反転した宇宙球の中に、自他の領域がすっぽり包み込まれる';
+      }, 7000);
+    }
+
+    window.addEventListener('click', triggerSequence);
+
+    // --- 常時表示：背景のヌースコンストラクション幾何学ライン ---
+    function drawBackgroundConstruction() {
+      const circleRadius = 160;
+      const offset = 120;
+
+      const leftX = centerX - offset;
+      const rightX = centerX + offset;
+
+      ctx.save();
+      ctx.lineWidth = 1.2;
+
+      // 1. 左の基底円（他者・時空：赤系）
+      ctx.beginPath();
+      ctx.arc(leftX, centerY, circleRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 60, 60, 0.2)';
+      ctx.stroke();
+
+      // 2. 右の基底円（自己・時空：青系）
+      ctx.beginPath();
+      ctx.arc(rightX, centerY, circleRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0, 140, 255, 0.2)';
+      ctx.stroke();
+
+      // 3. 中央の幾何学円（双対複素ヒルベルト空間領域）
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, circleRadius * 0.85, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.25)';
+      ctx.setLineDash([4, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 中心ガイドライン
+      ctx.beginPath();
+      ctx.moveTo(leftX - circleRadius, centerY);
+      ctx.lineTo(rightX + circleRadius, centerY);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.stroke();
+
+      // ラベルテキスト
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('他者（赤 / 時空）', leftX - 60, centerY - circleRadius - 10);
+      ctx.fillText('自己（青 / 時空）', rightX + 60, centerY - circleRadius - 10);
+      ctx.fillText('双対複素ヒルベルト空間', centerX, centerY + circleRadius + 25);
+
+      ctx.restore();
+    }
+
+    // イージング関数（ゆっくりと滑らかに滑空する）
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    // メイン描画ループ
+    function render() {
+      time += 0.02;
+
+      // 緩やかなトレイルクリア
+      ctx.fillStyle = 'rgba(4, 5, 7, 0.28)';
+      ctx.fillRect(0, 0, width, height);
+
+      // ★ 背景の基底ラインを常時描画
+      drawBackgroundConstruction();
+
+      const startOffset = width * 0.38; // 衝突開始の左右初期位置
+      let otherX = centerX - startOffset; // 他者（左・赤）
+      let selfX = centerX + startOffset;   // 自己（右・青）
+
+      let sphereScale = 0;
+      let zPush = 0;
+      const purunFactor = Math.sin(time * 5) * 6;
+
+      // --- 状態ごとの球体移動と膨張アニメーション ---
+      if (phaseState === 'IDLE') {
+        // 待機中：画面両端近くでゆったり微振動
+        otherX = centerX - startOffset + Math.sin(time * 1.5) * 10;
+        selfX = centerX + startOffset - Math.sin(time * 1.5) * 10;
+        sphereScale = 25 + Math.sin(time * 3) * 3;
+      } else if (phaseState === 'APPROACH') {
+        // ゆっくりと近づく（4秒間のイージング移動）
+        animProgress = Math.min(animProgress + (1 / 240), 1); // 約240フレーム（4秒）
+        const eased = easeInOutCubic(animProgress);
+        
+        otherX = (centerX - startOffset) + (startOffset) * eased;
+        selfX = (centerX + startOffset) - (startOffset) * eased;
+        sphereScale = 25 + eased * 15;
+      } else if (phaseState === 'CONTACT') {
+        // ピッと触れ合って溜めが生まれる
+        otherX = centerX - 12;
+        selfX = centerX + 12;
+        sphereScale = 45 + purunFactor;
+      } else if (phaseState === 'BIRTH' || phaseState === 'EXPAND') {
+        // 接触点でひとつに重なり、手前（Z軸）へ反転！
+        otherX = centerX;
+        selfX = centerX;
+
+        const baseRadius = phaseState === 'BIRTH' ? 180 : 150;
+        sphereScale = baseRadius + Math.sin(time * 7) * 10;
+        zPush = phaseState === 'BIRTH' ? 70 : 45;
+      }
+
+      // --- 他者（左・赤）と 自己（右・青）の移動球体描画 ---
+      if (phaseState !== 'EXPAND') {
+        // 他者球（赤）
+        ctx.beginPath();
+        ctx.arc(otherX, centerY, 32, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 50, 80, 0.55)';
+        ctx.shadowColor = '#ff3250';
+        ctx.shadowBlur = 25;
+        ctx.fill();
+
+        // 自己球（青）
+        ctx.beginPath();
+        ctx.arc(selfX, centerY, 32, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 150, 255, 0.55)';
+        ctx.shadowColor = '#0096ff';
+        ctx.shadowBlur = 25;
+        ctx.fill();
+        ctx.shadowBlur = 0; // シャドウリセット
+      }
+
+      // --- 衝突点から手前へプルプル伸び出射影される「宇宙球（3D粒子）」 ---
+      if (sphereScale > 2) {
+        const rotY = time * 0.7;
+        const rotX = Math.sin(time * 0.3) * 0.35;
+
+        particles.forEach(p => {
+          const r = sphereScale + Math.sin(time * 8 + p.noiseOffset) * 5;
+
+          // 旋回計算
+          let x1 = p.baseX * Math.cos(rotY) + p.baseZ * Math.sin(rotY);
+          let y1 = p.baseY;
+          let z1 = -p.baseX * Math.sin(rotY) + p.baseZ * Math.cos(rotY);
+
+          let y2 = y1 * Math.cos(rotX) - z1 * Math.sin(rotX);
+          let z2 = y1 * Math.sin(rotX) + z1 * Math.cos(rotX);
+          let x2 = x1;
+
+          // 手前（観測者側）への透視投影
+          const perspective = 400 / (400 - (z2 * r * 0.5 + zPush));
+          const screenX = centerX + x2 * r * perspective;
+          const screenY = centerY + y2 * r * perspective;
+          const drawSize = Math.max(0.5, p.size * perspective);
+
+          const alpha = Math.max(0.15, (z2 + 1) / 2);
+          ctx.beginPath();
+          ctx.arc(screenX, screenY, drawSize, 0, Math.PI * 2);
+          
+          // 青（自己）と赤（他者）が干渉・反転して立ち上がるエメラルド/パープルの粒
+          if (z2 > 0) {
+            ctx.fillStyle = `rgba(0, 255, 200, ${alpha})`; // 観測域（エメラルド）
+          } else {
+            ctx.fillStyle = `rgba(200, 70, 255, ${alpha * 0.5})`; // 潜在域（マゼンタパープル）
+          }
+          ctx.fill();
+        });
+
+        // 弾力ある宇宙球の外膜
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, sphereScale, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 255, 200, ${0.25 + Math.sin(time * 5) * 0.1})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    render();
+
+    // 起動時に自動で1度スローモーション衝突を発動
+    setTimeout(triggerSequence, 1000);
+  </script>
+</body>
+</html>
