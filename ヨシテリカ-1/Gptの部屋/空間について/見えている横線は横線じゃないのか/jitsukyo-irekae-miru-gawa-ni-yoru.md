@@ -32,11 +32,16 @@
 
 $SL(2,\mathbb{C})$ は、次の $2\times2$ エルミート行列に $X\to AXA^\dagger$ として作用し、$\det X$ を保つ。
 
-$$X=\begin{pmatrix} t+z & x-iy\\ x+iy & t-z\end{pmatrix},\qquad \det X=t^2-x^2-y^2-z^2$$
+$$
+X=\begin{pmatrix} t+z & x-iy\\ x+iy & t-z\end{pmatrix},\qquad \det X=t^2-x^2-y^2-z^2
+$$
 
 これは時空の点 $(t,x,y,z)$ を行列で書いたもので、$\det X$ は時空間隔にあたる。時間 $t$ は、対角成分の和の半分（トレース）に出る。
 
-ここで $\xi=(\xi_1,\xi_2)\in\mathbb{C}^2$ から $X=\xi\xi^\dagger$ を作ると、
+ここで 
+$$
+\xi=(\xi_1,\xi_2)\in\mathbb{C}^2$$
+から $X=\xi\xi^\dagger$ を作ると、
 
 - $\det X=0$、つまり **光的（ヌル）ベクトル** になる。
 - $t=\dfrac{|\xi_1|^2+|\xi_2|^2}{2}$、$z=\dfrac{|\xi_1|^2-|\xi_2|^2}{2}$、$x+iy=\xi_2\bar\xi_1$。
