@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ベイン変形：FCC → BCC</title>
+<style>
+:root{--bg:#fff;--fg:#2c2c2a;--mut:#5f5e5a;--line:#888780;--card:#f1efe8}
+@media(prefers-color-scheme:dark){:root{--bg:#1f1e1d;--fg:#f1efe8;--mut:#b4b2a9;--card:#2c2c2a}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;max-width:480px;margin-inline:auto}
+h1{font-size:18px;font-weight:500;margin:0 0 12px}
+.row{display:flex;align-items:center;gap:10px}.row input{flex:1}
+button{height:36px;min-width:64px;border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:8px}
+.l{display:flex;justify-content:space-between;font-size:13px;color:var(--mut);margin:6px 0}
+canvas{width:100%;height:auto;touch-action:none;display:block}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.c{background:var(--card);border-radius:8px;padding:12px}.c small{display:block;font-size:13px;color:var(--mut)}
+.c b{font-size:22px;font-weight:500}
+</style></head><body>
+<h1>ベイン変形：FCC → BCC</h1>
+<div class="row"><button id="play">再生</button><input type="range" id="t" min="0" max="100" value="0" step="1"></div>
+<div class="l"><span>FCC (c/a = √2)</span><span>BCC (c/a = 1)</span></div>
+<canvas id="cv" width="380" height="290"></canvas>
+<div class="g"><div class="c"><small>c / a</small><b id="r">1.414</b></div><div class="c"><small>いまの形</small><b id="nm" style="font-size:15px">体心正方</b></div></div>
+<p style="font-size:12px;color:var(--mut)">ドラッグで回転。体積をほぼ一定に保った簡略版（橙＝体心、緑＝角）。</p>
+<script>
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),T=document.getElementById('t'),R=document.getElementById('r'),NM=document.getElementById('nm');
+var yaw=0.6,pitch=0.45,playing=false,dir=1,drag=false,lx=0,A0=Math.SQRT1_2,C0=1,AB=Math.pow(0.5,1/3);
+function col(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function draw(){
+ var t=T.value/100,a=A0+(AB-A0)*t,c=C0+(AB-C0)*t;R.textContent=(c/a).toFixed(3);
+ NM.textContent=t<0.02?'体心正方（FCC の中の箱）':(t>0.98?'体心立方 BCC':'体心正方 BCT');
+ var W=cv.width,H=cv.height,s=150;ctx.clearRect(0,0,W,H);
+ var pts=[],i,j,k;for(i=-1;i<=1;i+=2)for(j=-1;j<=1;j+=2)for(k=-1;k<=1;k+=2)pts.push([i*a/2,j*a/2,k*c/2]);
+ var cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ function P(p){var x=p[0]*cy-p[1]*sy,d=p[0]*sy+p[1]*cy;return[W/2+s*x,H/2-s*(p[2]*cp-d*sp),d];}
+ var q=pts.map(P),o=P([0,0,0]);ctx.strokeStyle=col('--line');ctx.lineWidth=1.2;
+ for(i=0;i<8;i++)for(j=i+1;j<8;j++){var df=i^j;if(df==1||df==2||df==4){ctx.beginPath();ctx.moveTo(q[i][0],q[i][1]);ctx.lineTo(q[j][0],q[j][1]);ctx.stroke();}}
+ ctx.setLineDash([4,4]);[[0,7],[1,6],[2,5],[3,4]].forEach(function(e){ctx.beginPath();ctx.moveTo(q[e[0]][0],q[e[0]][1]);ctx.lineTo(q[e[1]][0],q[e[1]][1]);ctx.stroke();});ctx.setLineDash([]);
+ var L=q.map(function(p){return{x:p[0],y:p[1],d:p[2],r:9,c:'#1D9E75'};});L.push({x:o[0],y:o[1],d:o[2],r:12,c:'#D85A30'});
+ L.sort(function(u,v){return v.d-u.d;});L.forEach(function(p){ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fillStyle=p.c;ctx.fill();});
+}
+T.addEventListener('input',draw);
+cv.addEventListener('pointerdown',function(e){drag=true;lx=e.clientX;cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',function(e){if(drag){yaw+=(e.clientX-lx)*0.01;lx=e.clientX;draw();}});
+cv.addEventListener('pointerup',function(){drag=false;});
+function loop(){if(!playing)return;var v=+T.value+dir*0.6;if(v>=100){v=100;dir=-1;}if(v<=0){v=0;dir=1;}T.value=v;draw();requestAnimationFrame(loop);}
+document.getElementById('play').addEventListener('click',function(){playing=!playing;this.textContent=playing?'停止':'再生';if(playing)requestAnimationFrame(loop);});
+draw();
+</script></body></html>
