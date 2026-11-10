@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ブロッホ球：2枚の複素数の比が向きになる</title>
+<style>
+:root{--bg:#fff;--fg:#2c2c2a;--text-secondary:#5f5e5a;--text-muted:#888780;--border-strong:#888780;--surface-1:#f1efe8;--radius:8px}
+@media(prefers-color-scheme:dark){:root{--bg:#1f1e1d;--fg:#f1efe8;--text-secondary:#b4b2a9;--surface-1:#2c2c2a}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;max-width:480px;margin-inline:auto}
+h1{font-size:18px;font-weight:500;margin:0 0 12px}
+button{height:36px;min-width:44px;padding:0 12px;border:1px solid var(--border-strong);background:transparent;color:var(--fg);border-radius:8px}
+input[type=range]{width:100%}
+</style></head><body>
+<h1>ブロッホ球：2枚の複素数の比が向きになる</h1>
+<div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary);">
+  <span>θ</span><input type="range" id="th" min="0" max="180" value="70"><span id="thv" style="min-width:40px;text-align:right;">70°</span>
+  <span>φ</span><input type="range" id="ph" min="0" max="360" value="40"><span id="phv" style="min-width:40px;text-align:right;">40°</span>
+  <span>γ</span><input type="range" id="ga" min="0" max="360" value="0"><span id="gav" style="min-width:40px;text-align:right;">0°</span>
+</div>
+<div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
+  <button id="play" aria-label="全体位相を回す">再生</button>
+  <span style="font-size:13px;color:var(--text-secondary);">γ（2枚に共通の位相）を回すと、矢印は2本とも回るが、球の点は動かない</span>
+</div>
+<canvas id="cv" width="380" height="410" style="width:100%;height:auto;touch-action:none;display:block;"></canvas>
+<p style="font-size:12px;color:var(--text-muted);margin:6px 0 0;">θ と φ：2枚の比で決まる向き。ドラッグで球を回せる。</p>
+<script>
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var TH=document.getElementById('th'),PH=document.getElementById('ph'),GA=document.getElementById('ga');
+var yaw=0.5,pitch=0.35,drag=false,lx=0,playing=false;
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';}
+function rad(d){return d*Math.PI/180;}
+function draw(){
+  var th=rad(+TH.value),ph=rad(+PH.value),ga=rad(+GA.value);
+  document.getElementById('thv').textContent=TH.value+'°';
+  document.getElementById('phv').textContent=PH.value+'°';
+  document.getElementById('gav').textContent=Math.round(GA.value)+'°';
+  var W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+  var cx=190,cy0=125,R=100,cyw=Math.cos(yaw),syw=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  function P(p){var x=p[0]*cyw-p[1]*syw,d=p[0]*syw+p[1]*cyw;return [cx+R*x,cy0-R*(p[2]*cp-d*sp)];}
+  var line=css('--border-strong'),txt=css('--text-secondary');
+  ctx.lineWidth=1;ctx.strokeStyle=line;
+  ctx.beginPath();ctx.arc(cx,cy0,R,0,6.2832);ctx.stroke();
+  function poly(f,n,col,w){ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;for(var i=0;i<=n;i++){var q=P(f(i/n*6.2832));if(i==0)ctx.moveTo(q[0],q[1]);else ctx.lineTo(q[0],q[1]);}ctx.stroke();}
+  poly(function(a){return [Math.cos(a),Math.sin(a),0];},60,line,1);
+  poly(function(a){return [Math.sin(a)*Math.cos(ph),Math.sin(a)*Math.sin(ph),Math.cos(a)];},60,line,1);
+  ctx.strokeStyle=line;[[ [0,0,-1.2],[0,0,1.2] ],[ [-1.2,0,0],[1.2,0,0] ],[ [0,-1.2,0],[0,1.2,0] ]].forEach(function(e){var a=P(e[0]),b=P(e[1]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();});
+  var n=[Math.sin(th)*Math.cos(ph),Math.sin(th)*Math.sin(ph),Math.cos(th)];
+  var o=P([0,0,0]),pt=P(n);
+  ctx.strokeStyle='#D85A30';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(o[0],o[1]);ctx.lineTo(pt[0],pt[1]);ctx.stroke();
+  ctx.beginPath();ctx.arc(pt[0],pt[1],7,0,6.2832);ctx.fillStyle='#D85A30';ctx.fill();
+  ctx.fillStyle=txt;ctx.font='13px sans-serif';
+  var t0=P([0,0,1.2]),t1=P([0,0,-1.2]);
+  ctx.fillText('|0⟩',t0[0]+6,t0[1]+4);ctx.fillText('|1⟩',t1[0]+6,t1[1]+4);
+  var cs=[[95,320],[285,320]],r=60,amps=[Math.cos(th/2),Math.sin(th/2)],angs=[ga,ph+ga],cols=['#1D9E75','#7F77DD'],names=['z₁','z₂'];
+  for(var k=0;k<2;k++){
+    var c=cs[k];ctx.strokeStyle=line;ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(c[0],c[1],r,0,6.2832);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(c[0]-r-6,c[1]);ctx.lineTo(c[0]+r+6,c[1]);ctx.moveTo(c[0],c[1]-r-6);ctx.lineTo(c[0],c[1]+r+6);ctx.stroke();
+    var ex=c[0]+r*amps[k]*Math.cos(angs[k]),ey=c[1]-r*amps[k]*Math.sin(angs[k]);
+    ctx.strokeStyle=cols[k];ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(c[0],c[1]);ctx.lineTo(ex,ey);ctx.stroke();
+    ctx.beginPath();ctx.arc(ex,ey,5,0,6.2832);ctx.fillStyle=cols[k];ctx.fill();
+    ctx.fillStyle=txt;ctx.font='14px sans-serif';ctx.fillText(names[k],c[0]-8,c[1]-r-14);
+  }
+  ctx.fillStyle=txt;ctx.font='12px sans-serif';
+  ctx.fillText('2枚の複素平面（長さ＝振幅、角度＝位相）',72,H-12);
+}
+[TH,PH,GA].forEach(function(e){e.addEventListener('input',draw);});
+cv.addEventListener('pointerdown',function(e){if(e.offsetY/cv.clientHeight<0.6){drag=true;lx=e.clientX;cv.setPointerCapture(e.pointerId);}});
+cv.addEventListener('pointermove',function(e){if(drag){yaw+=(e.clientX-lx)*0.01;lx=e.clientX;draw();}});
+cv.addEventListener('pointerup',function(){drag=false;});
+var pb=document.getElementById('play');
+function loop(){if(!playing)return;GA.value=(+GA.value+1.2)%360;draw();requestAnimationFrame(loop);}
+pb.addEventListener('click',function(){playing=!playing;pb.textContent=playing?'停止':'再生';if(playing)requestAnimationFrame(loop);});
+draw();
+</script></body></html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ブロッホ球と干渉：2枚の複素数の比が向きになる</title>
+<style>
+:root{--bg:#fff;--fg:#2c2c2a;--text-secondary:#5f5e5a;--text-muted:#888780;--border-strong:#888780;--surface-1:#f1efe8;--radius:8px}
+@media(prefers-color-scheme:dark){:root{--bg:#1f1e1d;--fg:#f1efe8;--text-secondary:#b4b2a9;--surface-1:#2c2c2a}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;max-width:480px;margin-inline:auto}
+h1{font-size:18px;font-weight:500;margin:0 0 12px}
+button{height:36px;min-width:44px;padding:0 12px;border:1px solid var(--border-strong);background:transparent;color:var(--fg);border-radius:8px}
+input[type=range]{width:100%}
+</style></head><body>
+<h1>ブロッホ球と干渉：2枚の複素数の比が向きになる</h1>
+<div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary);">
+  <span>θ</span><input type="range" id="th" min="0" max="180" value="90"><span id="thv" style="min-width:76px;text-align:right;">90°</span>
+  <span>φ</span><input type="range" id="ph" min="0" max="360" value="0"><span id="phv" style="min-width:76px;text-align:right;">0°</span>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap;">
+  <button id="play" aria-label="φを回す">再生</button>
+  <button id="pi180">φ = π</button>
+  <button id="eq">θ = 90°</button>
+</div>
+<canvas id="cv" width="380" height="390" style="width:100%;height:auto;touch-action:none;display:block;"></canvas>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:8px 0 0;">
+  <div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;">
+    <div style="font-size:13px;color:var(--text-secondary);">球の x 成分 nₓ = sinθ·cosφ</div>
+    <div style="font-size:22px;font-weight:500;" id="nx">0.00</div>
+  </div>
+  <div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;">
+    <div style="font-size:13px;color:var(--text-secondary);">合成 |z₁+z₂|² = 1 + nₓ</div>
+    <div style="font-size:22px;font-weight:500;" id="sm">1.00</div>
+  </div>
+</div>
+<p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;">球をドラッグで回転。θ は振幅の配分（0°で z₁ だけ、180°で z₂ だけ）、φ は z₂ の位相（z₁ に対する差）。</p>
+<script>
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),TH=document.getElementById('th'),PH=document.getElementById('ph');
+var yaw=0.5,pitch=0.35,drag=false,lx=0,playing=false;
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';}
+function rad(d){return d*Math.PI/180;}
+function arrow(x0,y0,x1,y1,col,w,dash){
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.setLineDash([]);
+  var a=Math.atan2(y1-y0,x1-x0);
+  if(Math.hypot(x1-x0,y1-y0)>8){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1-8*Math.cos(a-0.4),y1-8*Math.sin(a-0.4));ctx.lineTo(x1-8*Math.cos(a+0.4),y1-8*Math.sin(a+0.4));ctx.closePath();ctx.fill();}
+}
+function draw(){
+  var th=rad(+TH.value),ph=rad(+PH.value),r1=Math.cos(th/2),r2=Math.sin(th/2);
+  var nx=Math.sin(th)*Math.cos(ph),n=[nx,Math.sin(th)*Math.sin(ph),Math.cos(th)],sum=1+nx;
+  document.getElementById('thv').textContent=TH.value+'°';
+  document.getElementById('phv').textContent=Math.round(PH.value)+'°';
+  document.getElementById('nx').textContent=(nx>=0?'+':'')+nx.toFixed(2);
+  document.getElementById('sm').textContent=sum.toFixed(2);
+  var W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+  var line=css('--border-strong'),txt=css('--text-secondary');
+  // sphere
+  var cx=190,cy0=112,R=88,c1=Math.cos(yaw),s1=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  function P(p){var x=p[0]*c1-p[1]*s1,d=p[0]*s1+p[1]*c1;return[cx+R*x,cy0-R*(p[2]*cp-d*sp)];}
+  ctx.lineWidth=1;ctx.strokeStyle=line;ctx.beginPath();ctx.arc(cx,cy0,R,0,6.2832);ctx.stroke();
+  function poly(f){ctx.beginPath();for(var i=0;i<=60;i++){var q=P(f(i/60*6.2832));if(i==0)ctx.moveTo(q[0],q[1]);else ctx.lineTo(q[0],q[1]);}ctx.stroke();}
+  poly(function(a){return[Math.cos(a),Math.sin(a),0];});
+  poly(function(a){return[Math.sin(a)*Math.cos(ph),Math.sin(a)*Math.sin(ph),Math.cos(a)];});
+  [[[0,0,-1.15],[0,0,1.15]],[[-1.15,0,0],[1.15,0,0]],[[0,-1.15,0],[0,1.15,0]]].forEach(function(e){var a=P(e[0]),b=P(e[1]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();});
+  var o=P([0,0,0]),pt=P(n),pr=P([nx,0,0]);
+  ctx.setLineDash([4,3]);ctx.strokeStyle='#D85A30';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pt[0],pt[1]);ctx.lineTo(pr[0],pr[1]);ctx.stroke();ctx.setLineDash([]);
+  ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(o[0],o[1]);ctx.lineTo(pt[0],pt[1]);ctx.stroke();
+  ctx.beginPath();ctx.arc(pt[0],pt[1],7,0,6.2832);ctx.fillStyle='#D85A30';ctx.fill();
+  ctx.beginPath();ctx.arc(pr[0],pr[1],5,0,6.2832);ctx.lineWidth=2;ctx.strokeStyle='#D85A30';ctx.stroke();
+  ctx.fillStyle=txt;ctx.font='13px sans-serif';
+  var t0=P([0,0,1.15]),t1=P([0,0,-1.15]),xp=P([1.15,0,0]),xm=P([-1.15,0,0]);
+  ctx.fillText('|0⟩',t0[0]+6,t0[1]+4);ctx.fillText('|1⟩',t1[0]+6,t1[1]+4);ctx.fillText('+x',xp[0]+4,xp[1]+4);ctx.fillText('−x',xm[0]-22,xm[1]+4);
+  // phasors
+  var ox=40,oy=312,S=62;
+  ctx.strokeStyle=line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ox-20,oy);ctx.lineTo(ox+150,oy);ctx.moveTo(ox,oy-68);ctx.lineTo(ox,oy+68);ctx.stroke();
+  var x1=ox+S*r1,y1=oy,x2=x1+S*r2*Math.cos(ph),y2=y1-S*r2*Math.sin(ph);
+  arrow(ox,oy,x1,y1,'#1D9E75',3);arrow(x1,y1,x2,y2,'#7F77DD',3);arrow(ox,oy,x2,y2,'#D85A30',2.5,[6,4]);
+  ctx.fillStyle=txt;ctx.font='12px sans-serif';ctx.fillText('z₁',ox+S*r1/2-4,oy+16);ctx.fillText('z₂',(x1+x2)/2+6,(y1+y2)/2-4);
+  ctx.fillText('矢印を繋ぐ（合成＝橙）',8,H-6);
+  // plot
+  var px=222,py=262,pw=140,pH=95;
+  ctx.strokeStyle=line;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py+pH);ctx.lineTo(px+pw,py+pH);ctx.stroke();
+  ctx.fillStyle=txt;ctx.fillText('合成の強さ（φ に対して）',px-6,py-8);
+  ctx.fillText('0',px-4,py+pH+14);ctx.fillText('π',px+pw/2-3,py+pH+14);ctx.fillText('2π',px+pw-8,py+pH+14);
+  ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(px+pw/2,py);ctx.lineTo(px+pw/2,py+pH);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='#D85A30';ctx.lineWidth=2;ctx.beginPath();
+  for(var i=0;i<=100;i++){var a=i/100*6.2832,v=1+Math.sin(th)*Math.cos(a),X=px+pw*i/100,Y=py+pH-pH*v/2;if(i==0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+  ctx.stroke();
+  ctx.beginPath();ctx.arc(px+pw*ph/6.2832,py+pH-pH*sum/2,6,0,6.2832);ctx.fillStyle='#D85A30';ctx.fill();
+}
+[TH,PH].forEach(function(e){e.addEventListener('input',draw);});
+document.getElementById('pi180').addEventListener('click',function(){PH.value=180;draw();});
+document.getElementById('eq').addEventListener('click',function(){TH.value=90;draw();});
+cv.addEventListener('pointerdown',function(e){if(e.offsetY/cv.clientHeight<0.58){drag=true;lx=e.clientX;cv.setPointerCapture(e.pointerId);}});
+cv.addEventListener('pointermove',function(e){if(drag){yaw+=(e.clientX-lx)*0.01;lx=e.clientX;draw();}});
+cv.addEventListener('pointerup',function(){drag=false;});
+var pb=document.getElementById('play');
+function loop(){if(!playing)return;PH.value=(+PH.value+1.2)%360;draw();requestAnimationFrame(loop);}
+pb.addEventListener('click',function(){playing=!playing;pb.textContent=playing?'停止':'再生';if(playing)requestAnimationFrame(loop);});
+draw();
+</script></body></html>

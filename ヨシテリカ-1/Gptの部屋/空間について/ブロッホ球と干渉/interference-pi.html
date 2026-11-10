@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>干渉：位相差 π で打ち消し合う</title>
+<style>
+:root{--bg:#fff;--fg:#2c2c2a;--text-secondary:#5f5e5a;--text-muted:#888780;--border-strong:#888780;--surface-1:#f1efe8;--radius:8px}
+@media(prefers-color-scheme:dark){:root{--bg:#1f1e1d;--fg:#f1efe8;--text-secondary:#b4b2a9;--surface-1:#2c2c2a}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;max-width:480px;margin-inline:auto}
+h1{font-size:18px;font-weight:500;margin:0 0 12px}
+button{height:36px;min-width:44px;padding:0 12px;border:1px solid var(--border-strong);background:transparent;color:var(--fg);border-radius:8px}
+input[type=range]{width:100%}
+</style></head><body>
+<h1>干渉：位相差 π で打ち消し合う</h1>
+<div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary);">
+  <span>配分</span><input type="range" id="th" min="0" max="180" value="90"><span id="thv" style="min-width:76px;text-align:right;">r₁=r₂</span>
+  <span>θ₁−θ₂</span><input type="range" id="dl" min="0" max="360" value="0"><span id="dlv" style="min-width:76px;text-align:right;">0°</span>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap;">
+  <button id="play" aria-label="位相差を回す">再生</button>
+  <button id="pi180">π にする</button>
+  <button id="eq">振幅を揃える</button>
+</div>
+<canvas id="cv" width="380" height="360" style="width:100%;height:auto;display:block;"></canvas>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:8px 0 0;">
+  <div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;">
+    <div style="font-size:13px;color:var(--text-secondary);">干渉項 2r₁r₂cosΔ</div>
+    <div style="font-size:22px;font-weight:500;" id="ct">0.00</div>
+  </div>
+  <div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;">
+    <div style="font-size:13px;color:var(--text-secondary);">合成 |z₁+z₂|²</div>
+    <div style="font-size:22px;font-weight:500;" id="sm">2.00</div>
+  </div>
+</div>
+<script>
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var TH=document.getElementById('th'),DL=document.getElementById('dl'),playing=false;
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';}
+function rad(d){return d*Math.PI/180;}
+function arrow(x0,y0,x1,y1,col,w,dash){
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.setLineDash([]);
+  var a=Math.atan2(y1-y0,x1-x0);
+  if(Math.hypot(x1-x0,y1-y0)>8){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1-9*Math.cos(a-0.4),y1-9*Math.sin(a-0.4));ctx.lineTo(x1-9*Math.cos(a+0.4),y1-9*Math.sin(a+0.4));ctx.closePath();ctx.fill();}
+}
+function draw(){
+  var th=rad(+TH.value),D=rad(+DL.value);
+  var r1=Math.cos(th/2),r2=Math.sin(th/2);
+  var tv=Math.abs(+TH.value-90)<2?'r₁=r₂':(+TH.value<90?'r₁ 大':'r₂ 大');
+  document.getElementById('thv').textContent=tv;
+  document.getElementById('dlv').textContent=Math.round(DL.value)+'°';
+  var cross=2*r1*r2*Math.cos(D),sum=r1*r1+r2*r2+cross;
+  document.getElementById('ct').textContent=(cross>=0?'+':'')+cross.toFixed(2);
+  document.getElementById('sm').textContent=sum.toFixed(2);
+  var W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+  var line=css('--border-strong'),txt=css('--text-secondary'),S=95,ox=120,oy=110;
+  ctx.strokeStyle=line;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(ox-60,oy);ctx.lineTo(ox+180,oy);ctx.moveTo(ox,oy-90);ctx.lineTo(ox,oy+90);ctx.stroke();
+  var x2=ox+S*r2,y2=oy;
+  var x1=x2+S*r1*Math.cos(D),y1=oy-S*r1*Math.sin(D);
+  arrow(ox,oy,x2,y2,'#7F77DD',3);
+  arrow(x2,y2,x1,y1,'#1D9E75',3);
+  arrow(ox,oy,x1,y1,'#D85A30',2.5,[6,4]);
+  ctx.fillStyle=txt;ctx.font='13px sans-serif';
+  ctx.fillText('z₂',(ox+x2)/2-6,oy+18);
+  ctx.fillText('z₁',(x2+x1)/2+8,(y2+y1)/2-6);
+  ctx.fillStyle='#D85A30';ctx.fillText('合成',ox+(x1-ox)/2-26,oy+(y1-oy)/2+(y1>oy?16:-8));
+  ctx.fillStyle=txt;ctx.font='12px sans-serif';ctx.fillText('矢印を頭からしっぽへ繋ぐ（長さ＝振幅、角度＝位相）',10,H-170);
+  var px=30,py=H-150,pw=320,ph=110,max=2;
+  ctx.strokeStyle=line;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py+ph);ctx.lineTo(px+pw,py+ph);ctx.stroke();
+  ctx.fillStyle=txt;ctx.fillText('合成の強さ',px,py-4);
+  ['0°','180° (π)','360°'].forEach(function(s,i){ctx.fillText(s,px+pw*i/2-(i==1?24:(i==2?18:0)),py+ph+16);});
+  ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(px+pw/2,py);ctx.lineTo(px+pw/2,py+ph);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='#D85A30';ctx.lineWidth=2;ctx.beginPath();
+  for(var i=0;i<=120;i++){var d=i/120*6.2832,v=r1*r1+r2*r2+2*r1*r2*Math.cos(d);var X=px+pw*i/120,Y=py+ph-ph*v/max;if(i==0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+  ctx.stroke();
+  var mx=px+pw*D/6.2832,my=py+ph-ph*sum/max;
+  ctx.beginPath();ctx.arc(mx,my,6,0,6.2832);ctx.fillStyle='#D85A30';ctx.fill();
+}
+[TH,DL].forEach(function(e){e.addEventListener('input',draw);});
+document.getElementById('pi180').addEventListener('click',function(){DL.value=180;draw();});
+document.getElementById('eq').addEventListener('click',function(){TH.value=90;draw();});
+var pb=document.getElementById('play');
+function loop(){if(!playing)return;DL.value=(+DL.value+1.2)%360;draw();requestAnimationFrame(loop);}
+pb.addEventListener('click',function(){playing=!playing;pb.textContent=playing?'停止':'再生';if(playing)requestAnimationFrame(loop);});
+draw();
+</script></body></html>
