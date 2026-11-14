@@ -49,12 +49,12 @@ $$q = \cos\tfrac{\theta}{2} + \sin\tfrac{\theta}{2}\,(n_x i + n_y j + n_z k)$$
 回転行列：
 
 $$
-\begin{pmatrix} 0 & -1 & 0 \\ 1 & 0 & 0 \\ 0 & 0 & 1\end{pmatrix}
+\begin{pmatrix} 0 & -1 & 0 \\ 1 & 0 & 0 \\ 0 & 0 & 1 \end{pmatrix}
 \begin{pmatrix} 1 \\ 0 \\ 0 \end{pmatrix} = \begin{pmatrix} 0 \\ 1 \\ 0 \end{pmatrix}$$
 
 クォータニオン：
 
-$$q = \frac{1+k}{\sqrt2}$ 、$q^{-1} = \frac{1-k}{\sqrt2}$$
+$$q = \frac{1+k}{\sqrt2}$ 、 $q^{-1} = \frac{1-k}{\sqrt2}$$
 
 ベクトルは $i$ に対応させる。
 
