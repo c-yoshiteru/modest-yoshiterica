@@ -28,7 +28,7 @@ $(x+iy)(\cos\theta + i\sin\theta)$ を展開すると、同じ式が出る。複
 
 $$q = w + xi + yj + zk,\qquad i^2 = j^2 = k^2 = ijk = -1$$
 
-掛け算は順番に依存する： $ij = k$ 、$ji = -k$ 。
+掛け算は順番に依存する： $ij = k$ 、 $ji = -k$ 。
 
 軸 $\hat n$（長さ1）のまわりに $\theta$ 回す回転は、
 
@@ -49,7 +49,7 @@ $$q = \cos\tfrac{\theta}{2} + \sin\tfrac{\theta}{2}\,(n_x i + n_y j + n_z k)$$
 回転行列：
 
 $$
-\begin{pmatrix} 0 & -1 & 0 \\ 1 & 0 & 0 \\ 0 & 0 & 1 \end{pmatrix}
+\begin{pmatrix} 0 & -1 & 0 , 1 & 0 & 0 , 0 & 0 & 1 \end{pmatrix}
 \begin{pmatrix} 1 \\ 0 \\ 0 \end{pmatrix} = \begin{pmatrix} 0 \\ 1 \\ 0 \end{pmatrix}$$
 
 クォータニオン：
