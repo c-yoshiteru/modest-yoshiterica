@@ -30,3 +30,10 @@
 
 ヽ(*´ω｀)
 
+---
+### 参考になれば
+
+ケブシンより
+[2025年10月14](https://www.noos.ne.jp/cavesyndrome/?m=202510&paged=8)
+
+[同年10月15、16](https://www.noos.ne.jp/cavesyndrome/?m=202510&paged=7)
