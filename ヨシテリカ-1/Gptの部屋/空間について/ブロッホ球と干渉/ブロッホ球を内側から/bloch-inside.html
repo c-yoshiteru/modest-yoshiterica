@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ブロッホ球を、内側から見る</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f4ef;--fg:#1d1b18;--muted:#6b665c;--grid:#9d9686;--a:#0a7a8a;--b:#c2410c;--acc:#8a6d1a;--panel:#ebe7de;--sky:#efece4}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0e1a;--fg:#ece8dc;--muted:#9a96a8;--grid:#6a6f92;--a:#5fd4e6;--b:#ff9a62;--acc:#e6c46a;--panel:#171a2e;--sky:#0a0b16}}
+:root[data-theme="dark"]{--bg:#0d0e1a;--fg:#ece8dc;--muted:#9a96a8;--grid:#6a6f92;--a:#5fd4e6;--b:#ff9a62;--acc:#e6c46a;--panel:#171a2e;--sky:#0a0b16}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "Noto Sans JP",system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:14px 14px 28px}
+h1{font-size:18px;margin:4px 0 6px}
+p{margin:6px 0;color:var(--muted);font-size:13px}
+canvas{display:block;width:100%;border-radius:12px;touch-action:none;background:var(--sky)}
+.row{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+button{background:var(--panel);color:var(--fg);border:1px solid var(--grid);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px}
+button.on{border-color:var(--acc);color:var(--acc)}
+.ctl{background:var(--panel);border-radius:10px;padding:8px 12px;margin:8px 0}
+.ctl label{display:flex;align-items:center;gap:8px;font-size:13px;margin:2px 0}
+.ctl label span.n{width:64px;flex:none}
+.ctl input{flex:1;min-width:0}
+.ctl output{width:44px;text-align:right;color:var(--muted);font-size:12px}
+.a{color:var(--a)}.b{color:var(--b)}
+#ro{font-size:13px;line-height:1.7}
+</style>
+</head>
+<body>
+<main>
+<h1>ブロッホ球を、内側から見る</h1>
+<p>ドラッグで視点を回す。内側は「球の中心に立って外を見る」見立て（天球）、外側は通常のブロッホ球。</p>
+<canvas id="cv"></canvas>
+<div class="row">
+<button id="mIn" class="on">内側（中心から）</button>
+<button id="mOut">外側</button>
+<button data-g="x">X 90°</button><button data-g="y">Y 90°</button><button data-g="z">Z 90°</button>
+</div>
+<div class="ctl">
+<label class="a"><span class="n">A θ</span><input id="aT" type="range" min="0" max="180" value="60"><output id="oaT"></output></label>
+<label class="a"><span class="n">A φ</span><input id="aP" type="range" min="0" max="360" value="30"><output id="oaP"></output></label>
+<label class="a"><span class="n">A 純度の半径</span><input id="r" type="range" min="20" max="100" value="100"><output id="or"></output></label>
+<label class="b"><span class="n">B θ</span><input id="bT" type="range" min="0" max="180" value="90"><output id="obT"></output></label>
+<label class="b"><span class="n">B φ</span><input id="bP" type="range" min="0" max="360" value="0"><output id="obP"></output></label>
+</div>
+<div class="ctl" id="ro"></div>
+<p>線引き：ブロッホ球は「状態の空間」で、普通の3次元空間ではありません。内側ビューは中心から見た見立てです。半径を下げると、Aは混合状態（球の内側の点）になり、内側ビューではぼけた光として描かれます（ぼけの表現は見立て）。重なり Tr(ρσ)＝(1＋a·b)/2 は二準位系の事実です。</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const D=3.2;
+let mode='in',yaw=0.5,pitch=0.3,W=360,H=400,rA=1,anim=0,gAx='z';
+function fromAng(t,p){t*=Math.PI/180;p*=Math.PI/180;return[Math.sin(t)*Math.cos(p),Math.sin(t)*Math.sin(p),Math.cos(t)];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+let A=fromAng(60,30),B=fromAng(90,0);
+const css=getComputedStyle(document.documentElement);
+const col=n=>css.getPropertyValue(n).trim();
+function basis(){const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+return{f:[cp*cy,cp*sy,sp],r:[sy,-cy,0],u:[-cy*sp,-sy*sp,cp]};}
+function proj(p,bs){const d=dot(p,bs.f),z=d+(mode==='out'?D:0);if(z<0.05)return null;
+const foc=mode==='out'?W*1.15:W*0.5/Math.tan(55*Math.PI/180);
+return{x:W/2+foc*dot(p,bs.r)/z,y:H/2-foc*dot(p,bs.u)/z,z:d};}
+function alphaOf(z){return mode==='out'?(z>0?0.18:0.85):0.8;}
+function path(pts,bs,color,lw,dash){ctx.lineWidth=lw;ctx.strokeStyle=color;ctx.setLineDash(dash||[]);let prev=null;
+for(const p of pts){const q=proj(p,bs);
+if(q&&prev){ctx.globalAlpha=alphaOf((q.z+prev.z)/2);ctx.beginPath();ctx.moveTo(prev.x,prev.y);ctx.lineTo(q.x,q.y);ctx.stroke();}
+prev=q;}
+ctx.globalAlpha=1;ctx.setLineDash([]);}
+function circ(fn){const a=[];for(let i=0;i<=72;i++)a.push(fn(i/72*2*Math.PI));return a;}
+function label(p,txt,color,bs,r){const q=proj(p,bs);if(!q)return;
+ctx.globalAlpha=alphaOf(q.z);ctx.fillStyle=color;ctx.beginPath();ctx.arc(q.x,q.y,r,0,7);ctx.fill();
+ctx.font='12px sans-serif';ctx.fillText(txt,q.x+7,q.y-7);ctx.globalAlpha=1;}
+function draw(){
+const bs=basis(),g=col('--grid');
+ctx.fillStyle=col('--sky');ctx.fillRect(0,0,W,H);
+for(const lat of[-60,-30,30,60]){const z=Math.sin(lat*Math.PI/180),rr=Math.cos(lat*Math.PI/180);
+path(circ(t=>[rr*Math.cos(t),rr*Math.sin(t),z]),bs,g,0.8);}
+for(let k=0;k<6;k++){const ph=k*Math.PI/6;path(circ(t=>[Math.cos(t)*Math.cos(ph),Math.cos(t)*Math.sin(ph),Math.sin(t)]),bs,g,0.8);}
+path(circ(t=>[Math.cos(t),Math.sin(t),0]),bs,col('--acc'),1.6);
+const ax=[[[0,0,1],'|0⟩'],[[0,0,-1],'|1⟩'],[[1,0,0],'|+⟩'],[[-1,0,0],'|−⟩'],[[0,1,0],'|+i⟩'],[[0,-1,0],'|−i⟩']];
+for(const[p,t]of ax)label(p,t,col('--muted'),bs,2.5);
+const c=dot(A,B),th=Math.acos(Math.max(-1,Math.min(1,c)));
+if(th>1e-3&&th<Math.PI-1e-3){const arc=[];for(let i=0;i<=40;i++){const t=i/40,s=Math.sin(th);
+arc.push([0,1,2].map(k=>(Math.sin((1-t)*th)*A[k]+Math.sin(t*th)*B[k])/s));}
+path(arc,bs,col('--acc'),1.4,[4,4]);}
+if(mode==='out'){const o=proj([0,0,0],bs);
+for(const[v,r,cl]of[[A,rA,'--a'],[B,1,'--b']]){const q=proj(v.map(x=>x*r),bs);
+if(o&&q){ctx.strokeStyle=col(cl);ctx.globalAlpha=0.6;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(o.x,o.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.globalAlpha=1;}}
+label(A.map(x=>x*rA),'A',col('--a'),bs,5);label(B,'B',col('--b'),bs,5);
+if(o){ctx.fillStyle=col('--muted');ctx.beginPath();ctx.arc(o.x,o.y,2,0,7);ctx.fill();}
+}else{
+const q=proj(A,bs);if(q){const h=9+(1-rA)*70,gr=ctx.createRadialGradient(q.x,q.y,0,q.x,q.y,h);
+gr.addColorStop(0,col('--a'));gr.addColorStop(1,'transparent');ctx.fillStyle=gr;ctx.beginPath();ctx.arc(q.x,q.y,h,0,7);ctx.fill();
+ctx.fillStyle=col('--a');ctx.font='12px sans-serif';ctx.fillText('A',q.x+10,q.y-10);}
+label(B,'B',col('--b'),bs,5);}
+}
+function rot(v,ax,t){const c=Math.cos(t),s=Math.sin(t),x=v[0],y=v[1],z=v[2];
+if(ax==='z')return[x*c-y*s,x*s+y*c,z];if(ax==='x')return[x,y*c-z*s,y*s+z*c];return[x*c+z*s,y,-x*s+z*c];}
+function norm(v){const l=Math.hypot(...v);return v.map(x=>x/l);}
+function ang(v){let p=Math.atan2(v[1],v[0])*180/Math.PI;if(p<0)p+=360;return[Math.acos(Math.max(-1,Math.min(1,v[2])))*180/Math.PI,p];}
+function sync(){A=norm(A);B=norm(B);const a=ang(A),b=ang(B);
+$('aT').value=Math.round(a[0]);$('aP').value=Math.round(a[1]);$('bT').value=Math.round(b[0]);$('bP').value=Math.round(b[1]);readout();}
+function readout(){
+$('oaT').textContent=$('aT').value+'°';$('oaP').textContent=$('aP').value+'°';$('or').textContent=(rA).toFixed(2);
+$('obT').textContent=$('bT').value+'°';$('obP').textContent=$('bP').value+'°';
+const c=dot(A,B),th=Math.acos(Math.max(-1,Math.min(1,c)))*180/Math.PI;
+$('ro').innerHTML='ブロッホ角 Θ ＝ '+th.toFixed(1)+'°<br>重なり Tr(ρσ) ＝ '+((1+rA*c)/2).toFixed(3)+'<br>Aの純度 Tr(ρ²) ＝ '+((1+rA*rA)/2).toFixed(3);}
+function fromSliders(){A=fromAng(+$('aT').value,+$('aP').value);B=fromAng(+$('bT').value,+$('bP').value);rA=+$('r').value/100;readout();}
+['aT','aP','r','bT','bP'].forEach(id=>$(id).addEventListener('input',fromSliders));
+document.querySelectorAll('[data-g]').forEach(b=>b.addEventListener('click',()=>{if(!anim){gAx=b.dataset.g;anim=24;}}));
+function setMode(m){mode=m;$('mIn').classList.toggle('on',m==='in');$('mOut').classList.toggle('on',m==='out');}
+$('mIn').onclick=()=>setMode('in');$('mOut').onclick=()=>setMode('out');
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{if(!drag)return;const s=mode==='in'?1:-1;
+yaw+=s*(e.clientX-drag[0])*0.008;pitch=Math.max(-1.5,Math.min(1.5,pitch+s*(e.clientY-drag[1])*0.008));drag=[e.clientX,e.clientY];});
+cv.addEventListener('pointerup',()=>{drag=null;});
+function resize(){W=cv.parentElement.clientWidth;H=Math.round(Math.min(W*1.05,520));const d=window.devicePixelRatio||1;
+cv.width=W*d;cv.height=H*d;cv.style.height=H+'px';ctx.setTransform(d,0,0,d,0,0);}
+window.addEventListener('resize',resize);
+function loop(){if(anim){A=rot(A,gAx,Math.PI/48);B=rot(B,gAx,Math.PI/48);anim--;if(!anim)sync();}draw();requestAnimationFrame(loop);}
+resize();readout();loop();
+</script>
+</body>
+</html>
